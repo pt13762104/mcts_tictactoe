@@ -9,13 +9,14 @@
 using namespace std;
 using namespace __gnu_pbds;
 mt19937_64 rng(chrono::steady_clock::now().time_since_epoch().count());
+const uint64_t RANDOM = rng();
 #ifdef SZ
 const int N = SZ;
 #else
 const int N = 3;
 #endif
 int k;
-size_t cntnodes = 0;
+size_t cntsims = 0;
 size_t depth = 1;
 chrono::high_resolution_clock Clock;
 auto start = Clock.now();
@@ -84,14 +85,8 @@ int side(const TestBoard &board)
   {
     for (int j = 0; j < N; j++)
     {
-      if (board[i][j] == 'X')
-      {
-        x_count++;
-      }
-      else if (board[i][j] == '0')
-      {
-        o_count++;
-      }
+      x_count += (board[i][j] == 'X');
+      o_count += (board[i][j] == '0');
     }
   }
   int pl = ((x_count - o_count == 1) ? -1 : 1);
@@ -151,87 +146,73 @@ int randgame(TestBoard board)
   }
   return status(board);
 }
-uint64_t randnum[N][N];
 struct chash
 {
-  uint64_t operator()(const TestBoard &x) const
+  uint64_t operator()(const int &x) const
   {
-    uint64_t hash = 0;
-    for (int i = 0; i < N; i++)
-      for (int j = 0; j < N; j++)
-        hash ^= randnum[i][j] * x[i][j];
-    return hash;
+    return x ^ RANDOM;
   }
 };
-cc_hash_table<TestBoard, pair<double, int>, chash> nodes_map;
-TestBoard max_uctpos(TestBoard &board)
+gp_hash_table<int, TestBoard, chash> boards;
+gp_hash_table<int, vector<int>, chash> adj;
+gp_hash_table<int, vector<pair<int, int>>, chash> adj2;
+gp_hash_table<int, pair<double, double>, chash> nodes_vals;
+gp_hash_table<int, bool, chash> ck;
+int cur_id = 0, old_cur_id = 0;
+void init(int board_id)
 {
+  TestBoard board = boards[board_id];
   vector<pair<int, int>> moves = gen(board);
-  TestBoard par = board;
   int x_count = 0, o_count = 0;
   for (int i = 0; i < N; i++)
   {
     for (int j = 0; j < N; j++)
     {
-      if (board[i][j] == 'X')
-      {
-        x_count++;
-      }
-      else if (board[i][j] == '0')
-      {
-        o_count++;
-      }
+      x_count += (board[i][j] == 'X');
+      o_count += (board[i][j] == '0');
     }
   }
   char pl = ((x_count - o_count == 1) ? '0' : 'X');
-  vector<TestBoard> zeromoves;
-  double max_uctval = -999999999;
-  vector<TestBoard> max_uctmoves;
-  for (auto &i : moves)
+  if (!ck[board_id])
   {
-    char last = board[i.first][i.second];
-    board[i.first][i.second] = pl;
-    if (nodes_map.find(board) == nodes_map.end())
-      zeromoves.push_back(board);
-    else
+    for (auto &i : moves)
     {
-      double uctval =
-          (nodes_map[board].second - nodes_map[board].first) /
-              nodes_map[board].second +
-          sqrt(2 * log(nodes_map[par].second) / nodes_map[board].second);
-      if (uctval > max_uctval)
-      {
-        max_uctval = uctval;
-        max_uctmoves = {board};
-      }
-      else if (uctval == max_uctval)
-      {
-        max_uctmoves.push_back(board);
-      }
+      char last = board[i.first][i.second];
+      board[i.first][i.second] = pl;
+      adj[board_id].push_back(++cur_id);
+      adj2[board_id].push_back(i);
+      boards[cur_id] = board;
+      board[i.first][i.second] = last;
     }
-    board[i.first][i.second] = last;
-  }
-  if (zeromoves.size())
-  {
-    return zeromoves[rng() % zeromoves.size()];
-  }
-  else
-  {
-    return max_uctmoves[rng() % max_uctmoves.size()];
+    ck[board_id] = 1;
   }
 }
-pair<int, int> bestmove(TestBoard &board)
+int max_uctpos(int board_id)
+{
+  double max_uctval = -999999999;
+  vector<int> max_uctmoves;
+  for (auto &id : adj[board_id])
+  {
+    double uctval =
+        (nodes_vals[id].second ? (nodes_vals[id].second - nodes_vals[id].first) /
+                                         nodes_vals[id].second +
+                                     sqrt(2 * log(nodes_vals[board_id].second) / nodes_vals[id].second)
+                               : INFINITY);
+    if (uctval > max_uctval)
+    {
+      max_uctval = uctval;
+      max_uctmoves = {id};
+    }
+    else if (uctval == max_uctval)
+      max_uctmoves.push_back(id);
+  }
+  return max_uctmoves[rng() % max_uctmoves.size()];
+}
+pair<int, int> bestmove(int board)
 {
   vector<pair<pair<int, int>, double>> res;
-  for (auto i : gen(board))
-  {
-    char last = board[i.first][i.second];
-    char pl = (side(board) == 1 ? 'X' : '0');
-    board[i.first][i.second] = pl;
-    res.push_back(
-        {i, (double)1 - nodes_map[board].first / nodes_map[board].second});
-    board[i.first][i.second] = last;
-  }
+  for (auto &i : adj[board])
+    res.push_back({adj2[board][&i - &adj[board][0]], (double)1 - nodes_vals[i].first / nodes_vals[i].second});
   sort(res.begin(), res.end(),
        [](pair<pair<int, int>, double> a, pair<pair<int, int>, double> b)
        {
@@ -239,84 +220,90 @@ pair<int, int> bestmove(TestBoard &board)
        });
   return res[0].first;
 }
-void do_simulation(TestBoard board)
+void do_simulation(int board)
 {
-  vector<TestBoard> pos_stack;
-  while (nodes_map.find(board) != nodes_map.end())
+  vector<int> pos_stack;
+  while (ck[board])
   {
-    pos_stack.push_back(board);
-    if (status(board) != 2)
+    if (status(boards[board]) != 2)
       break;
+    pos_stack.push_back(board);
     board = max_uctpos(board);
   }
+  init(board);
   pos_stack.push_back(board);
   if (pos_stack.size() - 1 > depth)
   {
     auto best = bestmove(pos_stack[0]);
     cout << "depth " << depth << " nps "
-         << (int)((double)cntnodes * 1.0e9 /
+         << (int)((double)(cur_id - old_cur_id) * 1.0e9 /
                   chrono::duration_cast<chrono::nanoseconds>(Clock.now() -
                                                              start)
                       .count())
-         << " nodes " << cntnodes << " bestmove ";
+         << " nodes " << cur_id << " bestmove ";
     cout << best.first << " " << best.second;
     cout << " score "
-         << (int)(log(((double)nodes_map[pos_stack[0]].first /
-                       (nodes_map[pos_stack[0]].second -
-                        nodes_map[pos_stack[0]].first))) /
-                  log(1.5) * 100 * side(pos_stack[0]))
+         << (int)(log(((double)nodes_vals[pos_stack[0]].first /
+                       (nodes_vals[pos_stack[0]].second -
+                        nodes_vals[pos_stack[0]].first))) /
+                  log(1.5) * 100 * side(boards[pos_stack[0]]))
          << endl;
   }
   depth = max(depth, pos_stack.size() - 1);
-  nodes_map[board] = {0, 0};
-  int randres = randgame(board);
+  int randres = randgame(boards[board]);
   for (auto &i : pos_stack)
   {
     if (randres == 0)
-    {
-      nodes_map[i].first += 0.5;
-    }
-    else if (side(i) == randres)
-    {
-      nodes_map[i].first += 1;
-    }
-    nodes_map[i].second += 1;
+      nodes_vals[i].first += 0.5;
+    else if (side(boards[i]) == randres)
+      nodes_vals[i].first += 1;
+    nodes_vals[i].second += 1;
   }
 }
 int main()
 {
   cin >> k;
-  for (int i = 0; i < N; i++)
-    for (int j = 0; j < N; j++)
-      randnum[i][j] = rng();
   TestBoard board;
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
       cin >> board[i][j];
+  int id = 0;
+  boards[0] = board;
   char pl = (side(board) == 1 ? 'X' : '0');
   while (status(board) == 2)
   {
     depth = 1;
-    nodes_map = {};
     start = Clock.now();
-    for (cntnodes = 0; cntnodes < k; cntnodes++)
-      do_simulation(board);
+    init(id);
+    for (cntsims = 0; cntsims < k; cntsims++)
+      do_simulation(id);
     int nps =
-        (double)cntnodes * 1.0e9 /
+        (double)(cur_id - old_cur_id) * 1.0e9 /
         chrono::duration_cast<chrono::nanoseconds>(Clock.now() - start).count();
-    auto best = bestmove(board);
-    cout << "depth " << depth << " nps " << nps << " nodes " << cntnodes
+    auto best = bestmove(id);
+    cout << "depth " << depth << " nps " << nps << " nodes " << cur_id
          << " bestmove ";
     cout << best.first << " " << best.second;
     cout << " score "
-         << (int)(log((nodes_map[board].first /
-                       (nodes_map[board].second - nodes_map[board].first))) /
-                  log(1.5) * 100 * side(board))
+         << (int)(log(((double)nodes_vals[id].first /
+                       (nodes_vals[id].second -
+                        nodes_vals[id].first))) /
+                  log(1.5) * 100 * side(boards[id]))
          << endl;
     pair<int, int> move;
     cin >> move.first >> move.second;
-    board[move.first][move.second] = pl;
-    pl = (pl == 'X' ? '0' : 'X');
+    int cur_i = -1;
+    for (int i = 0; i < adj2[id].size(); i++)
+      if (move == adj2[id][i])
+        cur_i = i;
+    if (cur_i != -1)
+      id = adj[id][cur_i];
+    else
+    {
+      cout << "Invaild move" << endl;
+      exit(0);
+    }
+    old_cur_id = cur_id;
   }
   int res = status(board);
   if (res == 1)
