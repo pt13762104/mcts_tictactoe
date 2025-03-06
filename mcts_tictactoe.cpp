@@ -18,7 +18,7 @@ const int N = 3;
 #ifdef THRESH
 const int thresh = THRESH;
 #else
-const int THRESH = N;
+const int thresh = N;
 #endif
 int k;
 size_t cntsims = 0;
@@ -78,10 +78,10 @@ bool check(const TestBoard &board, char player)
     }
     cnt3 += board[i][i] == player;
     cnt4 += board[i][N - i - 1] == player;
-    if (cnt >= THRESH || cnt2 >= THRESH)
+    if (cnt >= thresh || cnt2 >= thresh)
       return 1;
   }
-  return cnt3 >= THRESH || cnt4 >= THRESH;
+  return cnt3 >= thresh || cnt4 >= thresh;
 }
 int side(const TestBoard &board)
 {
@@ -295,7 +295,10 @@ int main()
       if (move == adj2[id][i])
         cur_i = i;
     if (cur_i != -1)
+    {
       id = adj[id][cur_i];
+      board = boards[id];
+    }
     else
     {
       cout << "Invaild move" << endl;
