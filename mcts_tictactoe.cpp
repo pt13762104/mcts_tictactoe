@@ -99,21 +99,15 @@ int status(const TestBoard &board)
     for (int j = 0; j < N; j++)
       nf_count += board[i][j] == '.';
   if (check(board, 'X'))
-  {
     return 1;
-  }
   if (check(board, '0'))
-  {
     return -1;
-  }
   else
   {
     if (nf_count)
       return 2;
     else
-    {
       return 0;
-    }
   }
 }
 vector<pair<int, int>> gen(const TestBoard &board)
@@ -127,16 +121,11 @@ vector<pair<int, int>> gen(const TestBoard &board)
         vaild.push_back({i, j});
   return vaild;
 }
-void shuffle(vector<pair<int, int>> &p)
-{
-  for (auto &i : p)
-    swap(i, p[rng() % p.size()]);
-}
 int randgame(TestBoard board)
 {
   char pl = (side(board) == 1 ? 'X' : '0');
   vector<pair<int, int>> moves = gen(board);
-  shuffle(moves);
+  shuffle(moves.begin(), moves.end(), rng);
   while (status(board) == 2)
   {
     auto move2 = moves.back();
@@ -148,9 +137,13 @@ int randgame(TestBoard board)
 }
 struct chash
 {
-  uint64_t operator()(const int &x) const
+  uint64_t operator()(int x) const noexcept
   {
-    return x ^ RANDOM;
+    // splitmix64
+    uint64_t z = (x += 0x9e3779b97f4a7c15);
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+    return z ^ (z >> 31);
   }
 };
 gp_hash_table<int, TestBoard, chash> boards;
