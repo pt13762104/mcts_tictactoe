@@ -15,6 +15,11 @@ const int N = SZ;
 #else
 const int N = 3;
 #endif
+#ifdef THRESH
+const int thresh = THRESH;
+#else
+const int THRESH = N;
+#endif
 int k;
 size_t cntsims = 0;
 size_t depth = 1;
@@ -73,10 +78,10 @@ bool check(const TestBoard &board, char player)
     }
     cnt3 += board[i][i] == player;
     cnt4 += board[i][N - i - 1] == player;
-    if (cnt == N || cnt2 == N)
+    if (cnt >= THRESH || cnt2 >= THRESH)
       return 1;
   }
-  return cnt3 == N || cnt4 == N;
+  return cnt3 >= THRESH || cnt4 >= THRESH;
 }
 int side(const TestBoard &board)
 {
