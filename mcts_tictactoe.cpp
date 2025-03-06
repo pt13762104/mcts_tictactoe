@@ -67,21 +67,50 @@ struct TestBoard
 };
 bool check(const TestBoard &board, char player)
 {
-  int cnt, cnt2, cnt3 = 0, cnt4 = 0;
+  int mxcnt = 0, cnt;
   for (int i = 0; i < N; i++)
   {
-    cnt = 0, cnt2 = 0;
+    cnt = 0;
     for (int j = 0; j < N; j++)
     {
-      cnt += (board[i][j] == player);
-      cnt2 += (board[j][i] == player);
+      if (board[i][j] == player)
+        cnt++;
+      else
+        cnt = 0;
+      mxcnt = max(mxcnt, cnt);
     }
-    cnt3 += board[i][i] == player;
-    cnt4 += board[i][N - i - 1] == player;
-    if (cnt >= thresh || cnt2 >= thresh)
-      return 1;
   }
-  return cnt3 >= thresh || cnt4 >= thresh;
+  for (int j = 0; j < N; j++)
+  {
+    cnt = 0;
+    for (int i = 0; i < N; i++)
+    {
+      if (board[i][j] == player)
+        cnt++;
+      else
+        cnt = 0;
+      mxcnt = max(mxcnt, cnt);
+    }
+  }
+  cnt = 0;
+  for (int i = 0; i < N; i++)
+  {
+    if (board[i][i] == player)
+      cnt++;
+    else
+      cnt = 0;
+    mxcnt = max(mxcnt, cnt);
+  }
+  cnt = 0;
+  for (int i = 0; i < N; i++)
+  {
+    if (board[i][N - i - 1] == player)
+      cnt++;
+    else
+      cnt = 0;
+    mxcnt = max(mxcnt, cnt);
+  }
+  return mxcnt >= thresh;
 }
 int side(const TestBoard &board)
 {
@@ -107,13 +136,9 @@ int status(const TestBoard &board)
     return 1;
   if (check(board, '0'))
     return -1;
-  else
-  {
-    if (nf_count)
-      return 2;
-    else
-      return 0;
-  }
+  if (nf_count)
+    return 2;
+  return 0;
 }
 vector<pair<int, int>> gen(const TestBoard &board)
 {
