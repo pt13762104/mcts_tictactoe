@@ -25,47 +25,37 @@ size_t cntsims = 0;
 size_t depth = 1;
 chrono::high_resolution_clock Clock;
 auto start = Clock.now();
-struct TestRow
-{
-  char v[N];
-  char &operator[](const int &i) { return v[i]; }
-  const char &operator[](const int &i) const { return v[i]; }
-  bool operator==(const TestRow &x) const
-  {
-    for (int i = 0; i < N; i++)
-      if (v[i] != x.v[i])
-        return 0;
-    return 1;
-  }
-  bool operator!=(const TestRow &x) const
-  {
-    for (int i = 0; i < N; i++)
-      if (v[i] != x.v[i])
-        return 1;
-    return 0;
-  }
-};
+const int BSZ = (N * N + 3) / 4;
 struct TestBoard
 {
-  TestRow v[N];
-  TestRow &operator[](const int &i) { return v[i]; }
-  const TestRow &operator[](const int &i) const { return v[i]; }
+  unsigned char v[BSZ]{};
+  inline int get(int i, int j) const
+  {
+    i = i * N + j;
+    return (v[i >> 2] >> (2 * (i & 3))) & 3;
+  }
+  inline void set(int i, int j, int k)
+  {
+    const int o = get(i, j);
+    i = i * N + j;
+    v[i >> 2] += (k - o) * (1 << (2 * (i & 3)));
+  }
   bool operator==(const TestBoard &x) const
   {
-    for (int i = 0; i < N; i++)
+    for (int i = 0; i < BSZ; i++)
       if (v[i] != x.v[i])
         return 0;
     return 1;
   }
   bool operator!=(const TestBoard &x) const
   {
-    for (int i = 0; i < N; i++)
+    for (int i = 0; i < BSZ; i++)
       if (v[i] != x.v[i])
         return 1;
     return 0;
   }
 };
-bool check(const TestBoard &board, char player)
+bool check(const TestBoard &board, int player)
 {
   int mxcnt = 0, cnt;
   for (int i = 0; i < N; i++)
@@ -73,7 +63,7 @@ bool check(const TestBoard &board, char player)
     cnt = 0;
     for (int j = 0; j < N; j++)
     {
-      if (board[i][j] == player)
+      if (board.get(i, j) == player)
         cnt++;
       else
         cnt = 0;
@@ -85,7 +75,7 @@ bool check(const TestBoard &board, char player)
     cnt = 0;
     for (int i = 0; i < N; i++)
     {
-      if (board[i][j] == player)
+      if (board.get(i, j) == player)
         cnt++;
       else
         cnt = 0;
@@ -95,7 +85,7 @@ bool check(const TestBoard &board, char player)
   cnt = 0;
   for (int i = 0; i < N; i++)
   {
-    if (board[i][i] == player)
+    if (board.get(i, i) == player)
       cnt++;
     else
       cnt = 0;
@@ -104,7 +94,7 @@ bool check(const TestBoard &board, char player)
   cnt = 0;
   for (int i = 0; i < N; i++)
   {
-    if (board[i][N - i - 1] == player)
+    if (board.get(i, N - i - 1) == player)
       cnt++;
     else
       cnt = 0;
@@ -119,26 +109,25 @@ int side(const TestBoard &board)
   {
     for (int j = 0; j < N; j++)
     {
-      x_count += (board[i][j] == 'X');
-      o_count += (board[i][j] == '0');
+      x_count += (board.get(i, j) == 1);
+      o_count += (board.get(i, j) == 0);
     }
   }
-  int pl = ((x_count - o_count == 1) ? -1 : 1);
-  return pl;
+  return ((x_count - o_count == 1) ? 0 : 1);
 }
 int status(const TestBoard &board)
 {
   int nf_count = 0;
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      nf_count += board[i][j] == '.';
-  if (check(board, 'X'))
+      nf_count += board.get(i, j) == 2;
+  if (check(board, 1))
     return 1;
-  if (check(board, '0'))
-    return -1;
+  if (check(board, 0))
+    return 0;
   if (nf_count)
     return 2;
-  return 0;
+  return 3;
 }
 vector<pair<int, int>> gen(const TestBoard &board)
 {
@@ -147,20 +136,20 @@ vector<pair<int, int>> gen(const TestBoard &board)
   vector<pair<int, int>> vaild;
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      if (board[i][j] != 'X' && board[i][j] != '0')
+      if (board.get(i, j) != 1 && board.get(i, j) != 0)
         vaild.push_back({i, j});
   return vaild;
 }
 int randgame(TestBoard board)
 {
-  char pl = (side(board) == 1 ? 'X' : '0');
+  int pl = side(board);
   vector<pair<int, int>> moves = gen(board);
   shuffle(moves.begin(), moves.end(), rng);
   while (status(board) == 2)
   {
     auto move2 = moves.back();
-    board[move2.first][move2.second] = pl;
-    pl = (pl == '0' ? 'X' : '0');
+    board.set(move2.first, move2.second, pl);
+    pl ^= 1;
     moves.pop_back();
   }
   return status(board);
@@ -186,26 +175,17 @@ void init(int board_id)
 {
   TestBoard board = boards[board_id];
   vector<pair<int, int>> moves = gen(board);
-  int x_count = 0, o_count = 0;
-  for (int i = 0; i < N; i++)
-  {
-    for (int j = 0; j < N; j++)
-    {
-      x_count += (board[i][j] == 'X');
-      o_count += (board[i][j] == '0');
-    }
-  }
-  char pl = ((x_count - o_count == 1) ? '0' : 'X');
+  int pl = side(board);
   if (!ck[board_id])
   {
     for (auto &i : moves)
     {
-      char last = board[i.first][i.second];
-      board[i.first][i.second] = pl;
+      int last = board.get(i.first, i.second);
+      board.set(i.first, i.second, pl);
       adj[board_id].push_back(++cur_id);
       adj2[board_id].push_back(i);
       boards[cur_id] = board;
-      board[i.first][i.second] = last;
+      board.set(i.first, i.second, last);
     }
     ck[board_id] = 1;
   }
@@ -238,7 +218,7 @@ pair<int, pair<int, int>> bestmove(int board)
     res = max(res, {(double)1 - nodes_vals[i].first / nodes_vals[i].second, {i, adj2[board][&i - &adj[board][0]]}});
   return res.second;
 }
-vector<pair<int, int>> pv(int board)
+pair<int, vector<pair<int, int>>> pv(int board)
 {
   vector<pair<int, int>> res;
   while (ck[board])
@@ -249,7 +229,7 @@ vector<pair<int, int>> pv(int board)
     res.push_back(move);
     board = nb;
   }
-  return res;
+  return {status(boards[board]), res};
 }
 void do_simulation(int board)
 {
@@ -265,26 +245,30 @@ void do_simulation(int board)
   pos_stack.push_back(board);
   if (pos_stack.size() - 1 > depth)
   {
-    cout << "depth " << depth << " nps "
+    cout << "depth " << pos_stack.size() - 1 << " nps "
          << (int)((double)(cur_id - old_cur_id) * 1.0e9 /
                   chrono::duration_cast<chrono::nanoseconds>(Clock.now() -
                                                              start)
                       .count())
          << " nodes " << cur_id << " pv ";
-    for (auto &i : pv(pos_stack[0]))
+    auto [stat, PV] = pv(pos_stack[0]);
+    for (auto &i : PV)
       cout << "(" << i.first << "," << i.second << ") ";
-    cout << "score "
-         << (int)(log(((double)nodes_vals[pos_stack[0]].first /
-                       (nodes_vals[pos_stack[0]].second -
-                        nodes_vals[pos_stack[0]].first))) /
-                  log(1.5) * 100 * side(boards[pos_stack[0]]))
-         << endl;
+    cout << "score ";
+    if (stat > 1)
+      cout << (int)(log(((double)nodes_vals[pos_stack[0]].first /
+                         (nodes_vals[pos_stack[0]].second -
+                          nodes_vals[pos_stack[0]].first))) /
+                    log(1.5) * 100 * (side(boards[pos_stack[0]]) ? 1 : -1))
+           << endl;
+    else
+      cout << "#" << (stat ? 1 : -1) * (int)PV.size() << endl;
   }
   depth = max(depth, pos_stack.size() - 1);
   int randres = randgame(boards[board]);
   for (auto &i : pos_stack)
   {
-    if (randres == 0)
+    if (randres == 3)
       nodes_vals[i].first += 0.5;
     else if (side(boards[i]) == randres)
       nodes_vals[i].first += 1;
@@ -297,13 +281,18 @@ int main()
   TestBoard board;
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      cin >> board[i][j];
+    {
+      char k;
+      cin >> k;
+      int val = (k == 'X' ? 1 : (k == '0' ? 0 : 2));
+      board.set(i, j, val);
+    }
   int id = 0;
   boards[0] = board;
-  char pl = (side(board) == 1 ? 'X' : '0');
+  int pl = side(board);
   while (status(board) == 2)
   {
-    depth = 1;
+    depth = 0;
     start = Clock.now();
     init(id);
     for (cntsims = 0; cntsims < k; cntsims++)
@@ -313,14 +302,18 @@ int main()
         chrono::duration_cast<chrono::nanoseconds>(Clock.now() - start).count();
     cout << "depth " << depth << " nps " << nps << " nodes " << cur_id
          << " pv ";
-    for (auto &i : pv(id))
+    auto [stat, PV] = pv(id);
+    for (auto &i : PV)
       cout << "(" << i.first << "," << i.second << ") ";
-    cout << "score "
-         << (int)(log(((double)nodes_vals[id].first /
-                       (nodes_vals[id].second -
-                        nodes_vals[id].first))) /
-                  log(1.5) * 100 * side(boards[id]))
-         << endl;
+    cout << "score ";
+    if (stat > 1)
+      cout << (int)(log(((double)nodes_vals[id].first /
+                         (nodes_vals[id].second -
+                          nodes_vals[id].first))) /
+                    log(1.5) * 100 * (side(boards[id]) ? 1 : -1))
+           << endl;
+    else
+      cout << "#" << (stat ? 1 : -1) * (int)PV.size() << endl;
     pair<int, int> move;
     cin >> move.first >> move.second;
     int cur_i = -1;
@@ -344,7 +337,7 @@ int main()
   {
     cout << "The first player won" << endl;
   }
-  else if (res == -1)
+  else if (res == 0)
   {
     cout << "The second player won" << endl;
   }
