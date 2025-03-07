@@ -231,17 +231,25 @@ int max_uctpos(int board_id)
   }
   return max_uctmoves[rng() % max_uctmoves.size()];
 }
-pair<int, int> bestmove(int board)
+pair<int, pair<int, int>> bestmove(int board)
 {
-  vector<pair<pair<int, int>, double>> res;
+  pair<double, pair<int, pair<int, int>>> res = {-1, {-1, {-1, -1}}};
   for (auto &i : adj[board])
-    res.push_back({adj2[board][&i - &adj[board][0]], (double)1 - nodes_vals[i].first / nodes_vals[i].second});
-  sort(res.begin(), res.end(),
-       [](pair<pair<int, int>, double> a, pair<pair<int, int>, double> b)
-       {
-         return a.second > b.second;
-       });
-  return res[0].first;
+    res = max(res, {(double)1 - nodes_vals[i].first / nodes_vals[i].second, {i, adj2[board][&i - &adj[board][0]]}});
+  return res.second;
+}
+vector<pair<int, int>> pv(int board)
+{
+  vector<pair<int, int>> res;
+  while (ck[board])
+  {
+    auto [nb, move] = bestmove(board);
+    if (move == pair<int, int>{-1, -1})
+      break;
+    res.push_back(move);
+    board = nb;
+  }
+  return res;
 }
 void do_simulation(int board)
 {
@@ -257,15 +265,15 @@ void do_simulation(int board)
   pos_stack.push_back(board);
   if (pos_stack.size() - 1 > depth)
   {
-    auto best = bestmove(pos_stack[0]);
     cout << "depth " << depth << " nps "
          << (int)((double)(cur_id - old_cur_id) * 1.0e9 /
                   chrono::duration_cast<chrono::nanoseconds>(Clock.now() -
                                                              start)
                       .count())
-         << " nodes " << cur_id << " bestmove ";
-    cout << best.first << " " << best.second;
-    cout << " score "
+         << " nodes " << cur_id << " pv ";
+    for (auto &i : pv(pos_stack[0]))
+      cout << "(" << i.first << "," << i.second << ") ";
+    cout << "score "
          << (int)(log(((double)nodes_vals[pos_stack[0]].first /
                        (nodes_vals[pos_stack[0]].second -
                         nodes_vals[pos_stack[0]].first))) /
@@ -303,11 +311,11 @@ int main()
     int nps =
         (double)(cur_id - old_cur_id) * 1.0e9 /
         chrono::duration_cast<chrono::nanoseconds>(Clock.now() - start).count();
-    auto best = bestmove(id);
     cout << "depth " << depth << " nps " << nps << " nodes " << cur_id
-         << " bestmove ";
-    cout << best.first << " " << best.second;
-    cout << " score "
+         << " pv ";
+    for (auto &i : pv(id))
+      cout << "(" << i.first << "," << i.second << ") ";
+    cout << "score "
          << (int)(log(((double)nodes_vals[id].first /
                        (nodes_vals[id].second -
                         nodes_vals[id].first))) /
