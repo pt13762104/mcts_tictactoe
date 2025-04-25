@@ -154,11 +154,12 @@ int randgame(TestBoard board)
   }
   return status(board);
 }
-vector<TestBoard> boards;
-vector<vector<int>> adj;
-vector<vector<pair<int, int>>> adj2;
-vector<pair<double, double>> nodes_vals;
-vector<bool> ck;
+const int NW = 1 + N * N;
+vector<TestBoard> boards(NW);
+vector<vector<int>> adj(NW);
+vector<vector<pair<int, int>>> adj2(NW);
+vector<pair<double, double>> nodes_vals(NW);
+vector<bool> ck(NW);
 int cur_id = 0, old_cur_id = 0;
 void init(int board_id)
 {
@@ -281,26 +282,28 @@ int main()
       int val = (k == 'X' ? 1 : (k == '0' ? 0 : 2));
       board.set(i, j, val);
     }
-  adj.resize(cur_id + 1);
-  adj2.resize(cur_id + 1);
-  nodes_vals.resize(cur_id + 1);
-  boards.resize(cur_id + 1);
-  ck.resize(cur_id + 1);
   int id = 0;
   boards[0] = board;
   int pl = side(board);
   while (status(board) == 2)
   {
-    adj.resize(adj.size() + k * N);
-    adj2.resize(adj2.size() + k * N);
-    nodes_vals.resize(nodes_vals.size() + k * N);
-    boards.resize(boards.size() + k * N);
-    ck.resize(ck.size() + k * N);
     depth = 0;
     start = Clock.now();
     init(id);
     for (cntsims = 1; cntsims <= k; cntsims++)
+    {
+      adj.resize(adj.size() + NW);
+      adj2.resize(adj2.size() + NW);
+      nodes_vals.resize(nodes_vals.size() + NW);
+      boards.resize(boards.size() + NW);
+      ck.resize(ck.size() + NW);
       do_simulation(id, cntsims);
+      adj.resize(cur_id + NW);
+      adj2.resize(cur_id + NW);
+      nodes_vals.resize(cur_id + NW);
+      boards.resize(cur_id + NW);
+      ck.resize(cur_id + NW);
+    }
     int nps =
         (double)(cur_id - old_cur_id) * 1.0e9 /
         chrono::duration_cast<chrono::nanoseconds>(Clock.now() - start).count();
@@ -340,11 +343,6 @@ int main()
       exit(0);
     }
     old_cur_id = cur_id;
-    adj.resize(cur_id + 1);
-    adj2.resize(cur_id + 1);
-    nodes_vals.resize(cur_id + 1);
-    boards.resize(cur_id + 1);
-    ck.resize(cur_id + 1);
   }
   int res = status(board);
   if (res == 1)
