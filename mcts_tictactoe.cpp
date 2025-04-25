@@ -154,11 +154,11 @@ int randgame(TestBoard board)
   }
   return status(board);
 }
-vector<TestBoard> boards(10000000);
-vector<vector<int>> adj(10000000);
-vector<vector<pair<int, int>>> adj2(10000000);
-vector<pair<double, double>> nodes_vals(10000000);
-vector<bool> ck(10000000);
+vector<TestBoard> boards;
+vector<vector<int>> adj;
+vector<vector<pair<int, int>>> adj2;
+vector<pair<double, double>> nodes_vals;
+vector<bool> ck;
 int cur_id = 0, old_cur_id = 0;
 void init(int board_id)
 {
@@ -281,6 +281,11 @@ int main()
       int val = (k == 'X' ? 1 : (k == '0' ? 0 : 2));
       board.set(i, j, val);
     }
+  adj.resize(cur_id + 1);
+  adj2.resize(cur_id + 1);
+  nodes_vals.resize(cur_id + 1);
+  boards.resize(cur_id + 1);
+  ck.resize(cur_id + 1);
   int id = 0;
   boards[0] = board;
   int pl = side(board);
@@ -335,11 +340,11 @@ int main()
       exit(0);
     }
     old_cur_id = cur_id;
-    adj.resize(cur_id);
-    adj2.resize(cur_id);
-    nodes_vals.resize(cur_id);
-    boards.resize(cur_id);
-    ck.resize(cur_id);
+    adj.resize(cur_id + 1);
+    adj2.resize(cur_id + 1);
+    nodes_vals.resize(cur_id + 1);
+    boards.resize(cur_id + 1);
+    ck.resize(cur_id + 1);
   }
   int res = status(board);
   if (res == 1)
