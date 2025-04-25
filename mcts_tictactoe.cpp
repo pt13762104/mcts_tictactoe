@@ -154,22 +154,11 @@ int randgame(TestBoard board)
   }
   return status(board);
 }
-struct chash
-{
-  uint64_t operator()(int x) const noexcept
-  {
-    // splitmix64
-    uint64_t z = (x += 0x9e3779b97f4a7c15);
-    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-    return z ^ (z >> 31);
-  }
-};
-gp_hash_table<int, TestBoard, chash> boards;
-gp_hash_table<int, vector<int>, chash> adj;
-gp_hash_table<int, vector<pair<int, int>>, chash> adj2;
-gp_hash_table<int, pair<double, double>, chash> nodes_vals;
-gp_hash_table<int, bool, chash> ck;
+vector<TestBoard> boards(10000000);
+vector<vector<int>> adj(10000000);
+vector<vector<pair<int, int>>> adj2(10000000);
+vector<pair<double, double>> nodes_vals(10000000);
+vector<bool> ck(10000000);
 int cur_id = 0, old_cur_id = 0;
 void init(int board_id)
 {
@@ -231,7 +220,7 @@ pair<int, vector<pair<int, int>>> pv(int board)
   }
   return {status(boards[board]), res};
 }
-void do_simulation(int board)
+void do_simulation(int board, int cntsims)
 {
   vector<int> pos_stack;
   while (ck[board])
@@ -247,6 +236,11 @@ void do_simulation(int board)
   {
     cout << "depth " << pos_stack.size() - 1 << " nps "
          << (int)((double)(cur_id - old_cur_id) * 1.0e9 /
+                  chrono::duration_cast<chrono::nanoseconds>(Clock.now() -
+                                                             start)
+                      .count())
+         << " sps "
+         << (int)((double)(cntsims) * 1.0e9 /
                   chrono::duration_cast<chrono::nanoseconds>(Clock.now() -
                                                              start)
                       .count())
@@ -292,15 +286,25 @@ int main()
   int pl = side(board);
   while (status(board) == 2)
   {
+    adj.resize(adj.size() + k * N);
+    adj2.resize(adj2.size() + k * N);
+    nodes_vals.resize(nodes_vals.size() + k * N);
+    boards.resize(boards.size() + k * N);
+    ck.resize(ck.size() + k * N);
     depth = 0;
     start = Clock.now();
     init(id);
-    for (cntsims = 0; cntsims < k; cntsims++)
-      do_simulation(id);
+    for (cntsims = 1; cntsims <= k; cntsims++)
+      do_simulation(id, cntsims);
     int nps =
         (double)(cur_id - old_cur_id) * 1.0e9 /
         chrono::duration_cast<chrono::nanoseconds>(Clock.now() - start).count();
-    cout << "depth " << depth << " nps " << nps << " nodes " << cur_id
+    cout << "depth " << depth << " nps " << nps << " sps "
+         << (int)((double)(cntsims) * 1.0e9 /
+                  chrono::duration_cast<chrono::nanoseconds>(Clock.now() -
+                                                             start)
+                      .count())
+         << " nodes " << cur_id
          << " pv ";
     auto [stat, PV] = pv(id);
     for (auto &i : PV)
@@ -331,6 +335,11 @@ int main()
       exit(0);
     }
     old_cur_id = cur_id;
+    adj.resize(cur_id);
+    adj2.resize(cur_id);
+    nodes_vals.resize(cur_id);
+    boards.resize(cur_id);
+    ck.resize(cur_id);
   }
   int res = status(board);
   if (res == 1)
